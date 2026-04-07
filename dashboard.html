@@ -1,0 +1,459 @@
+<!-- templates/dashboard.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ETsec - Smart Security Dashboard</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .dashboard-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .camera-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .camera-card {
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .camera-header {
+            background: #2c3e50;
+            color: white;
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .camera-feed {
+            width: 100%;
+            height: 300px;
+            background: #000;
+            object-fit: cover;
+        }
+        
+        .status-badge {
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .status-active {
+            background: #27ae60;
+        }
+        
+        .status-disabled {
+            background: #e74c3c;
+        }
+        
+        .toggle-btn {
+            padding: 5px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        .toggle-on {
+            background: #27ae60;
+            color: white;
+        }
+        
+        .toggle-off {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .section {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .section-title {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #2c3e50;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 10px;
+        }
+        
+        .face-registration {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .camera-select {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        
+        .register-btn {
+            background: #3498db;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        
+        .logs-table {
+            width: 100%;
+            overflow-x: auto;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        th {
+            background: #34495e;
+            color: white;
+        }
+        
+        .alert {
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .nav-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .tab {
+            padding: 10px 20px;
+            background: #ecf0f1;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        
+        .tab.active {
+            background: #3498db;
+            color: white;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="header">
+            <h1>🔒 ETsec Security System</h1>
+            <p>Welcome, Admin | <a href="/logout">Logout</a></p>
+        </div>
+        
+        <div class="nav-tabs">
+            <div class="tab active" onclick="showTab('cameras')">📹 Cameras</div>
+            <div class="tab" onclick="showTab('faces')">👤 Face Management</div>
+            <div class="tab" onclick="showTab('logs')">📊 Activity Logs</div>
+            <div class="tab" onclick="showTab('settings')">⚙️ System Guide</div>
+        </div>
+        
+        <!-- Cameras Tab -->
+        <div id="cameras-tab" class="tab-content active">
+            <div class="camera-grid" id="camera-grid">
+                <!-- Cameras will be dynamically added here -->
+            </div>
+        </div>
+        
+        <!-- Face Management Tab -->
+        <div id="faces-tab" class="tab-content">
+            <div class="section">
+                <h2 class="section-title">Register New Person</h2>
+                <div class="face-registration">
+                    <select id="camera-select" class="camera-select">
+                        <option>Select Camera</option>
+                    </select>
+                    <input type="text" id="person-name" placeholder="Person's Full Name" class="camera-select">
+                    <button class="register-btn" onclick="registerFace()">📸 Scan & Register Face</button>
+                </div>
+            </div>
+            
+            <div class="section">
+                <h2 class="section-title">Known People</h2>
+                <div id="known-people-list">
+                    <!-- List of registered people -->
+                </div>
+            </div>
+            
+            <div class="section">
+                <h2 class="section-title">Blacklist Management</h2>
+                <div id="blacklist-list">
+                    <!-- Blacklisted people -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- Logs Tab -->
+        <div id="logs-tab" class="tab-content">
+            <div class="section">
+                <h2 class="section-title">Recent Interactions</h2>
+                <div class="logs-table">
+                    <table id="interactions-table">
+                        <thead>
+                            <tr><th>Time</th><th>Person</th><th>Status</th><th>Distance</th><th>Image</th></tr>
+                        </thead>
+                        <tbody id="interactions-body">
+                            <!-- Dynamic content -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="section">
+                <h2 class="section-title">Login Attempts</h2>
+                <div class="logs-table">
+                    <table id="login-table">
+                        <thead><tr><th>Time</th><th>Username</th><th>Success</th><th>IP Address</th></tr></thead>
+                        <tbody id="login-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- System Guide Tab -->
+        <div id="settings-tab" class="tab-content">
+            <div class="section">
+                <h2 class="section-title">📚 ETsec System Guide</h2>
+                
+                <h3>How ETsec Works</h3>
+                <p>ETsec is an AI-powered security system that uses facial recognition to identify people approaching your premises. It distinguishes between authorized personnel, unknown individuals, and blacklisted intruders.</p>
+                
+                <h3>Installation Guide for Different Locations</h3>
+                
+                <h4>🏢 For Companies/Offices:</h4>
+                <ul>
+                    <li>Place cameras at entry points (main door, reception, restricted areas)</li>
+                    <li>Register all employees in the system</li>
+                    <li>Set up multiple cameras covering all angles</li>
+                    <li>Connect to office network for remote monitoring</li>
+                </ul>
+                
+                <h4>🏠 For Homes:</h4>
+                <ul>
+                    <li>Position camera at main entrance facing approach path</li>
+                    <li>Register family members and regular visitors</li>
+                    <li>Set up WhatsApp alerts for immediate notification</li>
+                    <li>Use old smartphones as additional cameras via Iriun</li>
+                </ul>
+                
+                <h4>🏪 For Retail Stores:</h4>
+                <ul>
+                    <li>Install cameras at entrance and checkout areas</li>
+                    <li>Register staff and known shoplifters (blacklist)</li>
+                    <li>Set up distance-based alerts (2-meter trigger)</li>
+                    <li>Monitor back-of-house restricted areas</li>
+                </ul>
+                
+                <h3>Setup Steps:</h3>
+                <ol>
+                    <li>Install Iriun Webcam on laptop and phones</li>
+                    <li>Connect all devices to same WiFi network</li>
+                    <li>Run ETsec on laptop: <code>python etsec_main.py</code></li>
+                    <li>Access dashboard at <code>http://localhost:5000</code></li>
+                    <li>Add cameras via IP addresses shown in Iriun</li>
+                    <li>Register faces using the dashboard</li>
+                    <li>Test with different facial appearances</li>
+                </ol>
+                
+                <h3>Best Practices:</h3>
+                <ul>
+                    <li>Ensure good lighting for accurate face detection</li>
+                    <li>Register faces from multiple angles</li>
+                    <li>Update registrations when people change appearance significantly</li>
+                    <li>Regularly review logs for system performance</li>
+                    <li>Keep backup of database file</li>
+                </ul>
+                
+                <h3>Troubleshooting:</h3>
+                <ul>
+                    <li><strong>False alarms:</strong> Adjust camera position and lighting</li>
+                    <li><strong>Face not recognized:</strong> Re-register with better lighting</li>
+                    <li><strong>WhatsApp not sending:</strong> Check phone number format (+255759105607)</li>
+                    <li><strong>Camera disconnected:</strong> Restart Iriun on the phone</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const socket = io();
+        
+        function showTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tabBtn => {
+                tabBtn.classList.remove('active');
+            });
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+            event.target.classList.add('active');
+        }
+        
+        function loadCameras() {
+            fetch('/api/cameras')
+                .then(res => res.json())
+                .then(data => {
+                    const grid = document.getElementById('camera-grid');
+                    grid.innerHTML = '';
+                    Object.keys(data.cameras).forEach(camId => {
+                        const status = data.status[camId];
+                        grid.innerHTML += `
+                            <div class="camera-card">
+                                <div class="camera-header">
+                                    <span>📹 ${camId}</span>
+                                    <span class="status-badge ${status === 'active' ? 'status-active' : 'status-disabled'}">
+                                        ${status === 'active' ? 'ACTIVE' : 'DISABLED'}
+                                    </span>
+                                    <button class="toggle-btn ${status === 'active' ? 'toggle-off' : 'toggle-on'}" 
+                                            onclick="toggleCamera('${camId}')">
+                                        ${status === 'active' ? 'Turn Off' : 'Turn On'}
+                                    </button>
+                                </div>
+                                <img id="feed-${camId}" class="camera-feed" src="/video_feed/${camId}" alt="Camera Feed">
+                            </div>
+                        `;
+                    });
+                });
+        }
+        
+        function toggleCamera(cameraId) {
+            fetch('/api/toggle_camera', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({camera_id: cameraId, action: 'toggle'})
+            }).then(() => loadCameras());
+        }
+        
+        function registerFace() {
+            const camera = document.getElementById('camera-select').value;
+            const name = document.getElementById('person-name').value;
+            if (!name) {
+                alert('Please enter person name');
+                return;
+            }
+            
+            fetch('/api/register_face', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({camera_id: camera, name: name})
+            }).then(res => res.json())
+              .then(data => {
+                  if(data.success) {
+                      alert(`Face registered for ${name}`);
+                      loadFaces();
+                  } else {
+                      alert('Registration failed. Ensure face is clearly visible.');
+                  }
+              });
+        }
+        
+        function loadFaces() {
+            fetch('/api/get_faces')
+                .then(res => res.json())
+                .then(data => {
+                    // Populate known and blacklisted lists
+                });
+        }
+        
+        function loadLogs() {
+            fetch('/api/get_logs')
+                .then(res => res.json())
+                .then(data => {
+                    const tbody = document.getElementById('interactions-body');
+                    tbody.innerHTML = '';
+                    data.logs.forEach(log => {
+                        tbody.innerHTML += `
+                            <tr>
+                                <td>${log.timestamp}</td>
+                                <td>${log.name}</td>
+                                <td>${log.status}</td>
+                                <td>${log.distance.toFixed(2)}m</td>
+                                <td><img src="${log.image}" width="50"></td>
+                            </tr>
+                        `;
+                    });
+                });
+        }
+        
+        // Auto-refresh every 5 seconds
+        setInterval(() => {
+            loadCameras();
+            loadLogs();
+        }, 5000);
+        
+        // Initial load
+        loadCameras();
+        loadLogs();
+        
+        socket.on('intrusion_alert', (data) => {
+            alert(`INTRUSION DETECTED! Check WhatsApp for image.`);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,302 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ETsec Multi-Camera Security System</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .header { background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #333; }
+        .status { color: #27ae60; margin-top: 10px; }
+        .camera-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 20px; }
+        .camera-card { background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .camera-header { background: #2c3e50; color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center; }
+        .camera-name { font-weight: bold; font-size: 16px; }
+        .camera-feed { width: 100%; height: 400px; background: #000; object-fit: cover; }
+        .status-badge { padding: 5px 10px; border-radius: 5px; font-size: 12px; font-weight: bold; }
+        .status-active { background: #27ae60; }
+        .status-disabled { background: #e74c3c; }
+        .btn { padding: 5px 15px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin: 0 5px; }
+        .btn-on { background: #27ae60; color: white; }
+        .btn-off { background: #e74c3c; color: white; }
+        .btn-danger { background: #c0392b; color: white; }
+        .section { background: white; border-radius: 10px; padding: 20px; margin-top: 20px; }
+        .nav-tabs { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .tab { padding: 10px 20px; background: #ecf0f1; cursor: pointer; border-radius: 5px; }
+        .tab.active { background: #3498db; color: white; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #34495e; color: white; }
+        .add-camera-form { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+        .add-camera-form input, .add-camera-form select { padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+        .btn-primary { background: #3498db; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; }
+        .alert { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .alert-success { background: #d4edda; color: #155724; }
+        .alert-error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>ETsec Multi-Camera Security System</h1>
+            <p class="status">System Active | {{ camera_count }} Camera(s) Online</p>
+        </div>
+        
+        <div class="nav-tabs">
+            <div class="tab active" onclick="showTab('cameras')">Live Cameras</div>
+            <div class="tab" onclick="showTab('addcam')">Add Camera</div>
+            <div class="tab" onclick="showTab('faces')">Face Management</div>
+            <div class="tab" onclick="showTab('logs')">Activity Logs</div>
+            <div class="tab" onclick="showTab('guide')">System Guide</div>
+        </div>
+        
+        <!-- Cameras Tab -->
+        <div id="cameras-tab" class="tab-content active">
+            <div class="camera-grid" id="cameraGrid">
+                {% for cam_id, cam_info in cameras.items() %}
+                <div class="camera-card">
+                    <div class="camera-header">
+                        <span class="camera-name">{{ cam_info.name }}</span>
+                        <span class="status-badge {{ 'status-active' if camera_status[cam_id] == 'active' else 'status-disabled' }}">
+                            {{ 'ACTIVE' if camera_status[cam_id] == 'active' else 'DISABLED' }}
+                        </span>
+                        <div>
+                            <button class="btn {{ 'btn-off' if camera_status[cam_id] == 'active' else 'btn-on' }}" 
+                                    onclick="toggleCamera('{{ cam_id }}')">
+                                {{ 'Turn Off' if camera_status[cam_id] == 'active' else 'Turn On' }}
+                            </button>
+                            <button class="btn btn-danger" onclick="removeCamera('{{ cam_id }}')">Remove</button>
+                        </div>
+                    </div>
+                    <img id="feed-{{ cam_id }}" class="camera-feed" src="/video_feed/{{ cam_id }}" alt="Camera Feed">
+                </div>
+                {% endfor %}
+            </div>
+            {% if cameras|length == 0 %}
+            <div class="section">
+                <p>No cameras detected. Please add cameras using the "Add Camera" tab.</p>
+                <p>For Iriun phone cameras: They appear as regular USB cameras (Camera 0, 1, 2, etc.)</p>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Add Camera Tab -->
+        <div id="addcam-tab" class="tab-content">
+            <div class="section">
+                <h3>Add New Camera</h3>
+                <div class="add-camera-form">
+                    <input type="text" id="camName" placeholder="Camera Name (e.g., Front Door)">
+                    <select id="camSource">
+                        <option value="0">Camera 0 (USB/Webcam)</option>
+                        <option value="1">Camera 1</option>
+                        <option value="2">Camera 2</option>
+                        <option value="3">Camera 3</option>
+                        <option value="4">Camera 4</option>
+                    </select>
+                    <select id="camType">
+                        <option value="usb">USB Camera</option>
+                        <option value="phone">Phone (Iriun)</option>
+                        <option value="ip">IP Camera</option>
+                    </select>
+                    <button class="btn-primary" onclick="addCamera()">Add Camera</button>
+                </div>
+                <div id="addCamResult"></div>
+                
+                <h3 style="margin-top: 30px;">Camera Setup Guide</h3>
+                <h4>For Phone Cameras (Iriun):</h4>
+                <ol>
+                    <li>Install Iriun Webcam app on your phone (Google Play/App Store)</li>
+                    <li>Install Iriun Webcam on your laptop from iriun.com</li>
+                    <li>Connect both devices to the same WiFi network</li>
+                    <li>Open Iriun on both devices</li>
+                    <li>Your phone will appear as Camera 0, 1, or 2 in the system</li>
+                    <li>Add it using the form above with the correct camera number</li>
+                </ol>
+                
+                <h4>For Multiple Phones:</h4>
+                <p>You can connect multiple phones simultaneously. Each phone will appear as a different camera number. Add each one separately.</p>
+            </div>
+        </div>
+        
+        <!-- Face Management Tab -->
+        <div id="faces-tab" class="tab-content">
+            <div class="section">
+                <h3>Register New Person</h3>
+                <select id="registerCamera" style="width: 100%; padding: 10px; margin: 10px 0;">
+                    {% for cam_id, cam_info in cameras.items() %}
+                    <option value="{{ cam_id }}">{{ cam_info.name }}</option>
+                    {% endfor %}
+                </select>
+                <input type="text" id="personName" placeholder="Person's Full Name" style="width: 100%; padding: 10px; margin: 10px 0;">
+                <button class="btn-primary" onclick="registerFace()">Capture & Register Face</button>
+                <div id="registerResult"></div>
+            </div>
+            <div class="section">
+                <h3>Registered People ({{ known_faces_count }})</h3>
+                <div id="knownPeopleList"></div>
+            </div>
+        </div>
+        
+        <!-- Logs Tab -->
+        <div id="logs-tab" class="tab-content">
+            <div class="section">
+                <h3>Recent Interactions</h3>
+                <table style="width: 100%;">
+                    <thead>
+                        <tr><th>Time</th><th>Camera</th><th>Person</th><th>Status</th><th>Distance</th></tr>
+                    </thead>
+                    <tbody id="interactionsBody"></tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Guide Tab -->
+        <div id="guide-tab" class="tab-content">
+            <div class="section">
+                <h3>ETsec Multi-Camera System Guide</h3>
+                
+                <h4>Adding Multiple Cameras:</h4>
+                <ul>
+                    <li><strong>USB Cameras:</strong> Plug in and they will be auto-detected</li>
+                    <li><strong>Phone Cameras (Iriun):</strong> Connect via WiFi, they appear as USB cameras</li>
+                    <li><strong>IP Cameras:</strong> Add using RTSP URL (e.g., rtsp://ip:port/stream)</li>
+                    <li><strong>Up to 10 cameras</strong> can be added simultaneously</li>
+                </ul>
+                
+                <h4>For Different Locations:</h4>
+                <ul>
+                    <li><strong>Homes:</strong> Front door, back door, garage</li>
+                    <li><strong>Offices:</strong> Main entrance, reception, server room</li>
+                    <li><strong>Retail:</strong> Entrance, checkout, storage areas</li>
+                    <li><strong>Warehouses:</strong> Loading dock, entry gates, restricted zones</li>
+                </ul>
+                
+                <h4>Camera Management:</h4>
+                <ul>
+                    <li>Each camera operates independently</li>
+                    <li>Enable/disable cameras individually</li>
+                    <li>Each camera has its own alert cooldown</li>
+                    <li>All cameras log to the same database</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function showTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tabBtn => {
+                tabBtn.classList.remove('active');
+            });
+            document.getElementById(tabName + '-tab').classList.add('active');
+            event.target.classList.add('active');
+        }
+        
+        function toggleCamera(cameraId) {
+            fetch('/api/toggle_camera', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({camera_id: cameraId})
+            }).then(() => {
+                location.reload();
+            });
+        }
+        
+        function removeCamera(cameraId) {
+            if(confirm('Are you sure you want to remove this camera?')) {
+                fetch('/api/remove_camera', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({camera_id: cameraId})
+                }).then(() => {
+                    location.reload();
+                });
+            }
+        }
+        
+        function addCamera() {
+            const name = document.getElementById('camName').value;
+            const source = document.getElementById('camSource').value;
+            const type = document.getElementById('camType').value;
+            
+            if(!name) {
+                alert('Please enter a camera name');
+                return;
+            }
+            
+            fetch('/api/add_camera', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name: name, source: source, type: type})
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.success) {
+                    document.getElementById('addCamResult').innerHTML = '<div class="alert alert-success">Camera added successfully!</div>';
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    document.getElementById('addCamResult').innerHTML = '<div class="alert alert-error">Failed to add camera</div>';
+                }
+            });
+        }
+        
+        function registerFace() {
+            const cameraId = document.getElementById('registerCamera').value;
+            const name = document.getElementById('personName').value;
+            
+            if(!name) {
+                alert('Please enter a name');
+                return;
+            }
+            
+            fetch('/api/register_face', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({camera_id: cameraId, name: name})
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.success) {
+                    document.getElementById('registerResult').innerHTML = '<div class="alert alert-success">Face registered successfully!</div>';
+                    document.getElementById('personName').value = '';
+                    loadLogs();
+                } else {
+                    document.getElementById('registerResult').innerHTML = '<div class="alert alert-error">Registration failed. Make sure face is visible.</div>';
+                }
+            });
+        }
+        
+        function loadLogs() {
+            fetch('/api/get_logs')
+                .then(res => res.json())
+                .then(data => {
+                    const tbody = document.getElementById('interactionsBody');
+                    tbody.innerHTML = '';
+                    data.logs.forEach(log => {
+                        tbody.innerHTML += `
+                            <tr>
+                                <td>${log.timestamp}</td>
+                                <td>${log.camera_id || 'N/A'}</td>
+                                <td>${log.name}</td>
+                                <td>${log.status}</td>
+                                <td>${log.distance ? log.distance.toFixed(2) + 'm' : 'N/A'}</td>
+                            </tr>
+                        `;
+                    });
+                });
+        }
+        
+        // Auto-refresh
+        setInterval(loadLogs, 5000);
+        loadLogs();
+    </script>
+</body>
+</html>
